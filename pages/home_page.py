@@ -16,6 +16,16 @@ class HomePage(BasePage):
         # do the asserting — so there's no `assert_visible()` method here.
         self.slider = page.locator("#slider-carousel")
 
+        # The hero headline, scoped to the ACTIVE carousel slide (inactive
+        # slides carry the same text but are display:none). Test Cases 25-26
+        # assert this is back on screen after scrolling up.
+        self.hero_heading = page.locator(
+            "#slider-carousel .item.active"
+        ).get_by_role(
+            "heading",
+            name="Full-Fledged practice website for Automation Engineers",
+        )
+
         # The home page's "Features Items" grid — same component as /products.
         self.products = ProductGrid(page, ".features_items")
 

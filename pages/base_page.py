@@ -85,6 +85,32 @@ class BasePage:
             "You have been successfully subscribed!"
         )
 
+        # The "back to top" arrow (jquery.scrollUp plugin) — injected on
+        # every page, hidden until you scroll down past a threshold.
+        self.scroll_up_arrow = page.locator("#scrollUp")
+
+    # ------------------------------------------------------------------ #
+    # Scrolling. `mouse.wheel` (a real wheel event) rather than
+    # `window.scrollTo` (an instant jump) so the scrollUp plugin's own
+    # scroll listener fires and reveals its arrow, and so the test is
+    # exercising something closer to what a user does.
+    # ------------------------------------------------------------------ #
+    def scroll_to_bottom(self) -> None:
+        self.page.mouse.wheel(0, 30000)
+
+    def scroll_to_top(self) -> None:
+        self.page.mouse.wheel(0, -30000)
+
+    def scroll_offset(self) -> float:
+        """Current vertical scroll position in px (0 == top)."""
+        return self.page.evaluate("window.pageYOffset")
+
+    def wait_until_scrolled_to_top(self) -> None:
+        # The scrollUp arrow animates the scroll over ~300ms, so a caller
+        # checking the offset right after clicking it would read a
+        # mid-animation value. This polls until it settles.
+        self.page.wait_for_function("window.pageYOffset < 5")
+
     # ------------------------------------------------------------------ #
     def _goto(self, path: str) -> None:
         """Navigate and wait for the window `load` event.

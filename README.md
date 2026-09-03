@@ -71,9 +71,10 @@ is optimising for.
 │       ├── test_products.py # Test Cases 8-9
 │       ├── test_subscription.py  # Test Cases 10-11
 │       ├── test_cart.py     # Test Cases 12-13, 17, 20, 22
-│       ├── test_checkout.py # Test Cases 14-16  (three place-order flows)
+│       ├── test_checkout.py # Test Cases 14-16, 23-24
 │       ├── test_categories.py    # Test Cases 18-19 (category / brand)
-│       └── test_reviews.py  # Test Case 21
+│       ├── test_reviews.py  # Test Case 21
+│       └── test_scroll.py   # Test Cases 25-26
 ├── pytest.ini               # base_url, test discovery, markers
 ├── requirements.txt
 └── .env.example
@@ -86,10 +87,12 @@ for instance, is the same markup on the home page, `/products`, the search
 results, every category/brand listing, and the "Recommended items"
 carousel — one class, many hosts.
 
-`tests/ui` and `tests/api` (added next) are split deliberately: they need
-different fixtures (a browser page vs. just an HTTP client) and it lets CI
-later run the fast API suite on every push while reserving the slower
-browser suite for less frequent runs.
+`tests/` is split into `tests/ui` (and a future `tests/api`) deliberately:
+they need different fixtures (a browser page vs. just an HTTP client) and
+it lets CI later run a fast API suite on every push while reserving the
+slower browser suite for less frequent runs. The REST API is already used
+today — for test-account provisioning (see **Account lifecycle**), just
+not yet as a test target of its own.
 
 ## Locator strategy
 
@@ -197,7 +200,9 @@ registration form is.
   brand products, search + cart-survives-login, product review, add to
   cart from the "Recommended items" carousel). Adds the `category_sidebar`
   / `brand_sidebar` components and `ProductListingPage`.
-- **Next:** Test Cases 23-26 (checkout address verification, invoice
-  download, scroll-up behaviours).
+- **Phase 6 — checkout detail & scrolling:** Test Cases 23-26 (checkout
+  address matches registration, download & inspect the invoice file,
+  scroll-to-top via the ↑ arrow and via the wheel).
 
-All 24 tests pass headed on Chrome (`pytest --headed --browser-channel chrome`).
+**All 26 practice test cases are automated — 28 tests, all passing headed
+on Chrome (`pytest --headed --browser-channel chrome`) and headless.**
