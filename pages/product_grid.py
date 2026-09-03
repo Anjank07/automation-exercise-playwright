@@ -50,6 +50,15 @@ class ProductGrid:
 
         return CartModal(self.page).wait_until_visible()
 
+    def add_all_to_cart(self) -> list[str]:
+        """Add every product currently in the grid, dismissing the modal
+        between each. Returns the names added, in order."""
+        names: list[str] = []
+        for index in range(self.count()):
+            names.append(self.name(index))
+            self.add_to_cart(index).continue_shopping()
+        return names
+
     def view_product(self, index: int = 0):
         self._card(index).get_by_role("link", name="View Product").click()
         # Wait for `load` on the detail page — same reason as everywhere else

@@ -2,6 +2,8 @@
 from playwright.sync_api import Page
 
 from pages.base_page import BasePage
+from pages.brand_sidebar import BrandSidebar
+from pages.category_sidebar import CategorySidebar
 from pages.product_grid import ProductGrid
 
 
@@ -10,6 +12,11 @@ class ProductsPage(BasePage):
 
     def __init__(self, page: Page):
         super().__init__(page)
+
+        # Left-hand sidebars — shared components (see product_listing_page.py,
+        # which reuses both).
+        self.categories = CategorySidebar(page)
+        self.brands = BrandSidebar(page)
 
         # "ALL PRODUCTS" and "SEARCHED PRODUCTS" are both <h2 class="title">.
         # Role + name is enough to tell them apart, and name matching is
@@ -32,7 +39,10 @@ class ProductsPage(BasePage):
 
     def search(self, term: str) -> "ProductsPage":
         self.search_input.fill(term)
-        self.search_button.click()
+        # Submitting navigates to /products?search=<term>; click_and_load
+        # waits for the results page to fully load (its "Add to cart"
+        # handlers bind on `load` — see BasePage).
+        self.click_and_load(self.search_button)
         return self
 
     def result_names(self) -> list[str]:

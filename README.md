@@ -44,14 +44,17 @@ is optimising for.
 ├── pages/                  # Page Object Model — locators + actions, no assertions
 │   ├── base_page.py         # shared header/nav + footer subscription
 │   ├── home_page.py
-│   ├── product_grid.py      # component: the product-card grid (home + /products)
+│   ├── product_grid.py      # component: the product-card grid
 │   ├── cart_modal.py        # component: the "Added!" pop-up
+│   ├── category_sidebar.py  # component: the "Category" accordion
+│   ├── brand_sidebar.py     # component: the "Brands" list
 │   ├── signup_login_page.py
 │   ├── account_information_page.py
 │   ├── account_status_pages.py   # "Account Created!" / "Account Deleted!"
 │   ├── contact_us_page.py
 │   ├── products_page.py          # /products listing + search
-│   ├── product_detail_page.py
+│   ├── product_listing_page.py   # /category_products/* and /brand_products/*
+│   ├── product_detail_page.py    # detail + "Write Your Review"
 │   ├── test_cases_page.py
 │   ├── cart_page.py              # cart table + CartRow + route to checkout
 │   ├── checkout_page.py
@@ -67,18 +70,21 @@ is optimising for.
 │       ├── test_contact.py  # Test Case 6
 │       ├── test_products.py # Test Cases 8-9
 │       ├── test_subscription.py  # Test Cases 10-11
-│       ├── test_cart.py     # Test Cases 12-13, 17
-│       └── test_checkout.py # Test Cases 14-16  (three place-order flows)
+│       ├── test_cart.py     # Test Cases 12-13, 17, 20, 22
+│       ├── test_checkout.py # Test Cases 14-16  (three place-order flows)
+│       ├── test_categories.py    # Test Cases 18-19 (category / brand)
+│       └── test_reviews.py  # Test Case 21
 ├── pytest.ini               # base_url, test discovery, markers
 ├── requirements.txt
 └── .env.example
 ```
 
-`pages/` now has two **components** (`product_grid.py`, `cart_modal.py`) —
-reusable UI fragments with no URL of their own that page objects compose
-rather than inherit. The product grid is byte-for-byte identical on the
-home page and `/products`, so it lives in one place and both pages hold an
-instance.
+`pages/` has four **components** (`product_grid`, `cart_modal`,
+`category_sidebar`, `brand_sidebar`) — reusable UI fragments with no URL of
+their own that page objects compose rather than inherit. The product grid,
+for instance, is the same markup on the home page, `/products`, the search
+results, every category/brand listing, and the "Recommended items"
+carousel — one class, many hosts.
 
 `tests/ui` and `tests/api` (added next) are split deliberately: they need
 different fixtures (a browser page vs. just an HTTP client) and it lets CI
@@ -155,6 +161,16 @@ lose the race, which is the worst kind of flake to chase. Routing every
 navigation through one of two methods means "the page is ready" is
 guaranteed in one place.
 
+### Retry on timeout only
+
+`pytest.ini` sets `--reruns 2` **scoped with `--only-rerun` to
+timeout-shaped errors**. Across a full-suite run the live site
+occasionally serves a page whose `load` never fires, or drops a request —
+infrastructure noise. An **assertion** failure is a real finding and is
+never retried: it fails on the first attempt. This keeps the suite honest
+(a genuine regression still goes red immediately) while not failing a CI
+run because an ad server hiccuped.
+
 ## Account lifecycle
 
 Registration / checkout tests use a `new_user` fixture (unique email, API
@@ -177,7 +193,11 @@ registration form is.
   register-while-checkout, register-before, login-before). Introduces the
   `product_grid` / `cart_modal` components and the checkout → payment →
   order-confirmation page chain.
-- **Next:** Test Cases 18-22 (category / brand browsing, cart-after-login,
-  product reviews, recommended items).
+- **Phase 5 — browsing & reviews:** Test Cases 18-22 (category products,
+  brand products, search + cart-survives-login, product review, add to
+  cart from the "Recommended items" carousel). Adds the `category_sidebar`
+  / `brand_sidebar` components and `ProductListingPage`.
+- **Next:** Test Cases 23-26 (checkout address verification, invoice
+  download, scroll-up behaviours).
 
-All 19 tests pass headed on Chrome (`pytest --headed --browser-channel chrome`).
+All 24 tests pass headed on Chrome (`pytest --headed --browser-channel chrome`).

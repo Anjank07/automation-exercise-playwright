@@ -31,6 +31,17 @@ class ProductDetailPage(BasePage):
         self.quantity_input = info.locator("#quantity")
         self.add_to_cart_button = info.get_by_role("button", name="Add to cart")
 
+        # --- "Write Your Review" form (lower on the page) ---
+        # Its fields are #name / #email / #review with generic ids, so scope
+        # every one to #review-form to be safe.
+        review = page.locator("#review-form")
+        self.write_review_tab = page.get_by_role("link", name="Write Your Review")
+        self.review_name = review.locator("#name")
+        self.review_email = review.locator("#email")
+        self.review_text = review.locator("#review")
+        self.review_submit = review.locator("#button-review")
+        self.review_success = page.get_by_text("Thank you for your review.")
+
     def set_quantity(self, quantity: int) -> "ProductDetailPage":
         # fill() selects-all + types, so this REPLACES the default "1"
         # rather than appending to it.
@@ -42,3 +53,10 @@ class ProductDetailPage(BasePage):
         from pages.cart_modal import CartModal
 
         return CartModal(self.page).wait_until_visible()
+
+    def add_review(self, name: str, email: str, text: str) -> "ProductDetailPage":
+        self.review_name.fill(name)
+        self.review_email.fill(email)
+        self.review_text.fill(text)
+        self.review_submit.click()
+        return self

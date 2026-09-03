@@ -2,6 +2,7 @@
 from playwright.sync_api import Page
 
 from pages.base_page import BasePage
+from pages.category_sidebar import CategorySidebar
 from pages.product_grid import ProductGrid
 
 
@@ -17,6 +18,20 @@ class HomePage(BasePage):
 
         # The home page's "Features Items" grid — same component as /products.
         self.products = ProductGrid(page, ".features_items")
+
+        # The left-hand category accordion (also on /products and listings).
+        self.categories = CategorySidebar(page)
+
+        # "Recommended items" — a Bootstrap carousel at the foot of the page.
+        # Scope the grid to the ACTIVE carousel slide: the inactive `.item`
+        # divs are in the DOM too, and their cards would be counted / clicked
+        # by mistake.
+        self.recommended_heading = page.get_by_role(
+            "heading", name="Recommended Items"
+        )
+        self.recommended = ProductGrid(
+            page, ".recommended_items .item.active"
+        )
 
     def load(self) -> "HomePage":
         """Navigate to the home page.
