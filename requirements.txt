@@ -1,4 +1,7 @@
-playwright==1.62.0
-pytest==9.1.1
-pytest-playwright==0.9.0
+# Pinned to the versions this suite is developed and verified against.
+# `pip install -r requirements.txt` then `playwright install chromium`.
+playwright==1.60.0
+pytest==9.0.3
+pytest-playwright==0.8.0
+pytest-base-url==2.1.0
 python-dotenv==1.2.3

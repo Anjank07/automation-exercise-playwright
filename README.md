@@ -32,18 +32,26 @@ is optimising for.
 
 ```
 .
-├── conftest.py            # root fixtures shared by UI + (future) API tests; also
-│                           # what makes `pages`/`config` importable from tests
+├── conftest.py            # root fixtures shared by UI + API tests (API request
+│                           # context, account lifecycle); also what makes
+│                           # `pages`/`config`/`helpers` importable from tests
 ├── config/
 │   └── settings.py         # the handful of knobs pytest-playwright doesn't own
+├── helpers/                # non-page support code
+│   ├── user_data.py         # UserData dataclass + build_user() (unique email)
+│   └── account_api.py       # create/delete accounts via the site's REST API
 ├── pages/                  # Page Object Model — locators + actions, no assertions
-│   ├── base_page.py         # shared header/nav, common to every page
+│   ├── base_page.py         # shared header/nav (incl. logged-in items)
 │   ├── home_page.py
+│   ├── signup_login_page.py
+│   ├── account_information_page.py
+│   ├── account_status_pages.py   # "Account Created!" / "Account Deleted!"
 │   └── products_page.py
 ├── tests/
 │   └── ui/
-│       ├── conftest.py      # fixtures that need a real browser page
-│       └── test_home_navigation.py
+│       ├── conftest.py      # browser-only fixtures: default timeout, ad blocking
+│       ├── test_home_navigation.py
+│       └── test_auth.py     # Test Cases 1-5 (register / login / logout)
 ├── pytest.ini               # base_url, test discovery, markers
 ├── requirements.txt
 └── .env.example
@@ -80,10 +88,31 @@ playwright install chromium     # downloads the matching browser binary
 cp .env.example .env            # optional, defaults work as-is
 pytest                          # runs the full suite headless
 pytest --headed                 # watch it drive a real browser window
+pytest --headed --browser-channel chrome   # use installed Google Chrome,
+#                                            not bundled Chromium
 ```
+
+## Third-party / ad blocking
+
+automationexercise.com serves Google ads, including a "vignette" full-page
+interstitial that covers the page and steals the next click. An autouse
+fixture in `tests/ui/conftest.py` aborts every request to a known
+ad/analytics host, so the tests exercise the application and nothing else.
+See that file for why blocking beats "dismiss the ad if it appears".
+
+## Account lifecycle
+
+Registration tests use a `new_user` fixture (unique email, API cleanup
+backstop). Login/logout tests use `registered_user`, which creates the
+account via the site's REST API before the test and deletes it after —
+so a UI login test fails only when UI login is broken, not when the
+registration form is.
 
 ## Status
 
-Phase 1 (UI foundation) complete: environment, project skeleton, and a
-first navigation test verified end-to-end. API automation (via Playwright's
-`APIRequestContext`) is next.
+- **Phase 1 — UI foundation:** complete.
+- **Phase 2 — auth suite:** Test Cases 1-5 (register / login / logout)
+  complete, verified headed on Chrome. API layer (`APIRequestContext`) in
+  use for test-account provisioning.
+- **Next:** Test Cases 6-11 (contact form, info pages, product listing,
+  search, subscription).

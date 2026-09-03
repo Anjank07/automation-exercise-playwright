@@ -1,0 +1,8 @@
+# Normalise line endings. Without this, every file this repo is cloned onto
+# Windows gets CRLF in the working tree, and the first commit from that
+# machine shows every line changed. `text=auto eol=lf` tells git to store
+# LF in history and check out LF everywhere, so diffs stay about content.
+* text=auto eol=lf
+*.png binary
+*.pdf binary
+*.jpg binary
