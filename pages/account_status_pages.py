@@ -23,7 +23,7 @@ class _AccountStatusPage(BasePage):
         self.continue_button = page.locator("[data-qa='continue-button']")
 
     def click_continue(self):
-        self.continue_button.click()
+        self.click_and_load(self.continue_button)
         from pages.home_page import HomePage
 
         return HomePage(self.page)

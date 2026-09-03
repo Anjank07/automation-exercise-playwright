@@ -80,7 +80,7 @@ class AccountInformationPage(BasePage):
         return self
 
     def create_account(self):
-        self.create_account_button.click()
+        self.click_and_load(self.create_account_button)
         from pages.account_status_pages import AccountCreatedPage
 
         return AccountCreatedPage(self.page)

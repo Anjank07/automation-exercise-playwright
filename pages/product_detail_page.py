@@ -25,3 +25,20 @@ class ProductDetailPage(BasePage):
         # Price renders as "Rs. 500" in a <span>. Match the pattern rather
         # than a hardcoded amount so this page object works for any product.
         self.price = info.get_by_text(re.compile(r"Rs\.\s*\d+")).first
+
+        # Quantity stepper + add-to-cart (this button is a real <button>,
+        # unlike the grid's <a>).
+        self.quantity_input = info.locator("#quantity")
+        self.add_to_cart_button = info.get_by_role("button", name="Add to cart")
+
+    def set_quantity(self, quantity: int) -> "ProductDetailPage":
+        # fill() selects-all + types, so this REPLACES the default "1"
+        # rather than appending to it.
+        self.quantity_input.fill(str(quantity))
+        return self
+
+    def add_to_cart(self):
+        self.add_to_cart_button.click()
+        from pages.cart_modal import CartModal
+
+        return CartModal(self.page).wait_until_visible()

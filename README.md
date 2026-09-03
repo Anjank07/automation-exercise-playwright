@@ -39,10 +39,13 @@ is optimising for.
 │   └── settings.py         # the handful of knobs pytest-playwright doesn't own
 ├── helpers/                # non-page support code
 │   ├── user_data.py         # UserData dataclass + build_user() (unique email)
-│   └── account_api.py       # create/delete accounts via the site's REST API
+│   ├── account_api.py       # create/delete accounts via the site's REST API
+│   └── payment_card.py      # PaymentCard dataclass (checkout tests)
 ├── pages/                  # Page Object Model — locators + actions, no assertions
 │   ├── base_page.py         # shared header/nav + footer subscription
 │   ├── home_page.py
+│   ├── product_grid.py      # component: the product-card grid (home + /products)
+│   ├── cart_modal.py        # component: the "Added!" pop-up
 │   ├── signup_login_page.py
 │   ├── account_information_page.py
 │   ├── account_status_pages.py   # "Account Created!" / "Account Deleted!"
@@ -50,21 +53,32 @@ is optimising for.
 │   ├── products_page.py          # /products listing + search
 │   ├── product_detail_page.py
 │   ├── test_cases_page.py
-│   └── cart_page.py
+│   ├── cart_page.py              # cart table + CartRow + route to checkout
+│   ├── checkout_page.py
+│   ├── payment_page.py
+│   └── order_placed_page.py
 ├── tests/
 │   └── ui/
 │       ├── conftest.py      # browser-only fixtures: timeouts, ad blocking,
-│       │                     # dialog auto-accept
+│       │                     # dialog auto-accept, payment_card, cart_with_products
 │       ├── assets/          # committed fixtures (Contact Us upload file)
 │       ├── test_home_navigation.py   # TC7 (Test Cases page) lives here too
-│       ├── test_auth.py     # Test Cases 1-5 (register / login / logout)
+│       ├── test_auth.py     # Test Cases 1-5   (register / login / logout)
 │       ├── test_contact.py  # Test Case 6
 │       ├── test_products.py # Test Cases 8-9
-│       └── test_subscription.py  # Test Cases 10-11
+│       ├── test_subscription.py  # Test Cases 10-11
+│       ├── test_cart.py     # Test Cases 12-13, 17
+│       └── test_checkout.py # Test Cases 14-16  (three place-order flows)
 ├── pytest.ini               # base_url, test discovery, markers
 ├── requirements.txt
 └── .env.example
 ```
+
+`pages/` now has two **components** (`product_grid.py`, `cart_modal.py`) —
+reusable UI fragments with no URL of their own that page objects compose
+rather than inherit. The product grid is byte-for-byte identical on the
+home page and `/products`, so it lives in one place and both pages hold an
+instance.
 
 `tests/ui` and `tests/api` (added next) are split deliberately: they need
 different fixtures (a browser page vs. just an HTTP client) and it lets CI
@@ -127,16 +141,27 @@ the application:
   page load here legitimately takes a few seconds), and `expect(...)`
   assertions are bumped from their 5 s default to match.
 
-One more, in `ContactUsPage.submit()`: an explicit `wait_for_load_state
-("load")` — the script that wires up that form's confirm dialog runs on
-`load`, and the suite otherwise navigates with `domcontentloaded`.
+### Wait for `load`, not `domcontentloaded`
+
+Every navigation goes through `BasePage._goto()` (for `goto`) or
+`BasePage.click_and_load()` (for clicks that navigate), and both wait for
+the window **`load`** event. This isn't the fast default — it's a
+correctness fix. Many of this site's controls are JS-driven `<a>` /
+`<button>` elements (the search button, "Proceed To Checkout", "Place
+Order", the Contact submit) whose click handlers are attached on `load`.
+Interact before that and the click hits a dead element — nothing happens,
+no error. It only surfaced under load, when the server was slow enough to
+lose the race, which is the worst kind of flake to chase. Routing every
+navigation through one of two methods means "the page is ready" is
+guaranteed in one place.
 
 ## Account lifecycle
 
-Registration tests use a `new_user` fixture (unique email, API cleanup
-backstop). Login/logout tests use `registered_user`, which creates the
-account via the site's REST API before the test and deletes it after —
-so a UI login test fails only when UI login is broken, not when the
+Registration / checkout tests use a `new_user` fixture (unique email, API
+cleanup backstop). Login/logout and login-checkout tests use
+`registered_user`, which creates the account via the site's REST API
+before the test and deletes it after — so a UI login test fails only when
+UI login is broken, not when the
 registration form is.
 
 ## Status
@@ -147,6 +172,12 @@ registration form is.
 - **Phase 3 — content & catalogue:** Test Cases 6-11 (Contact Us form,
   Test Cases page, All Products + product detail, product search, footer
   subscription on home and cart).
-- **Next:** Test Cases 12-17 (cart add/quantity/remove, checkout flows).
+- **Phase 4 — cart & checkout:** Test Cases 12-17 (add to cart, cart
+  quantity, remove from cart, and the three place-order flows —
+  register-while-checkout, register-before, login-before). Introduces the
+  `product_grid` / `cart_modal` components and the checkout → payment →
+  order-confirmation page chain.
+- **Next:** Test Cases 18-22 (category / brand browsing, cart-after-login,
+  product reviews, recommended items).
 
-All 13 tests pass headed on Chrome (`pytest --headed --browser-channel chrome`).
+All 19 tests pass headed on Chrome (`pytest --headed --browser-channel chrome`).

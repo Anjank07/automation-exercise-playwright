@@ -2,6 +2,7 @@
 from playwright.sync_api import Page
 
 from pages.base_page import BasePage
+from pages.product_grid import ProductGrid
 
 
 class ProductsPage(BasePage):
@@ -18,13 +19,8 @@ class ProductsPage(BasePage):
             "heading", name="Searched Products"
         )
 
-        # One card per product. `.features_items` scopes us to the main grid
-        # so we don't also count the "recommended items" carousel lower down.
-        self.product_cards = page.locator(".features_items .product-image-wrapper")
-
-        # The product NAME on each card is the <p> inside `.productinfo`.
-        # Used by search tests to read back what came out of the search.
-        self._result_names = page.locator(".features_items .productinfo p")
+        # The card grid is a shared component (see product_grid.py).
+        self.grid = ProductGrid(page, ".features_items")
 
         # Search box + button. Stable ids, no data-qa or label available.
         self.search_input = page.locator("#search_product")
@@ -40,14 +36,8 @@ class ProductsPage(BasePage):
         return self
 
     def result_names(self) -> list[str]:
-        """Visible product names currently in the grid."""
-        return [t.strip() for t in self._result_names.all_inner_texts()]
-
-    def view_product(self, index: int = 0):
-        """Click "View Product" on the card at `index` (0 = first)."""
-        self.product_cards.nth(index).get_by_role(
-            "link", name="View Product"
-        ).click()
-        from pages.product_detail_page import ProductDetailPage
-
-        return ProductDetailPage(self.page)
+        """Every product name currently in the grid."""
+        return [
+            t.strip()
+            for t in self.grid.cards.locator(".productinfo p").all_inner_texts()
+        ]

@@ -16,10 +16,10 @@ def test_all_products_and_product_detail(page: Page):
     expect(products.all_products_heading).to_be_visible()  # "ALL PRODUCTS"
 
     # "the products list is visible"
-    expect(products.product_cards.first).to_be_visible()
-    assert products.product_cards.count() > 0
+    expect(products.grid.cards.first).to_be_visible()
+    assert products.grid.count() > 0
 
-    detail = products.view_product(0)
+    detail = products.grid.view_product(0)
 
     # "Verify that detail is visible: name, category, price, availability,
     #  condition, brand"

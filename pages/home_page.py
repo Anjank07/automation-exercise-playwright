@@ -2,6 +2,7 @@
 from playwright.sync_api import Page
 
 from pages.base_page import BasePage
+from pages.product_grid import ProductGrid
 
 
 class HomePage(BasePage):
@@ -13,6 +14,9 @@ class HomePage(BasePage):
         # POM convention in this repo: page objects expose locators, tests
         # do the asserting — so there's no `assert_visible()` method here.
         self.slider = page.locator("#slider-carousel")
+
+        # The home page's "Features Items" grid — same component as /products.
+        self.products = ProductGrid(page, ".features_items")
 
     def load(self) -> "HomePage":
         """Navigate to the home page.

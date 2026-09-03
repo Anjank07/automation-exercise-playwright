@@ -65,22 +65,17 @@ class ContactUsPage(BasePage):
         Clicking Submit fires a native `confirm("Press OK to proceed!")`,
         auto-accepted by the `_auto_accept_dialogs` fixture in
         tests/ui/conftest.py (the "click OK" step). On accept the form
-        submits and the page re-renders with the success banner.
+        submits and the page re-renders with the success banner, which the
+        caller then asserts on.
 
-        The `wait_for_load_state("load")` is load-bearing: the script that
-        wires the confirm dialog onto this form runs on the window `load`
-        event, NOT on DOMContentLoaded. Because the suite navigates with
-        `wait_until="domcontentloaded"` (see BasePage._goto), clicking
-        Submit too early hits a button whose handler isn't attached yet —
-        nothing happens and the form never submits. Playwright's
-        auto-waiting guarantees the *element* is ready; it can't know the
-        page's own JS isn't. This is the one place we have to bridge that.
+        (The form's confirm handler is wired on the window `load` event, so
+        this only works because we reached this page via `click_and_load` /
+        `_goto`, both of which wait for `load` — see BasePage.)
         """
-        self.page.wait_for_load_state("load")
         self.submit_button.click()
 
     def go_home(self):
-        self.home_button.click()
+        self.click_and_load(self.home_button)
         from pages.home_page import HomePage
 
         return HomePage(self.page)

@@ -87,19 +87,22 @@ class BasePage:
 
     # ------------------------------------------------------------------ #
     def _goto(self, path: str) -> None:
-        """Navigate, waiting only for DOMContentLoaded — not the full `load`.
+        """Navigate and wait for the window `load` event.
 
-        automationexercise.com's ad / analytics tags can keep the `load`
-        event pending for 10s+ *after* the page is fully usable (a hanging
-        tracker request, a slow ad iframe). The default `wait_until="load"`
-        turns that into a spurious `Page.goto: Timeout` failure.
+        We tried `wait_until="domcontentloaded"` (faster) and it caused a
+        whole class of flake: many of this site's controls are JS-driven
+        `<a>` / `<button>` elements whose click handlers are attached on
+        `load`, not DOMContentLoaded — the search button, "Proceed To
+        Checkout", "Place Order", the Contact form's submit. Interacting
+        before `load` clicks a dead element and nothing happens. It only
+        showed up under load (when the server is slow enough that we beat
+        the handler), which is the worst kind of flake.
 
-        Every locator in this suite is an auto-retrying Playwright locator,
-        so it already waits for the specific element it needs. "DOM parsed"
-        is therefore the right bar for navigation; waiting for every last
-        image and beacon buys us nothing but flake.
+        Waiting for `load` fixes it wholesale. The cost — `load` pending on
+        a slow ad resource — is contained by the expanded ad-host blocklist
+        (see tests/ui/conftest.py) and the 30s navigation timeout.
         """
-        self.page.goto(path, wait_until="domcontentloaded")
+        self.page.goto(path, wait_until="load")
 
     def subscribe(self, email: str) -> None:
         """Fill the footer email box and click the arrow.
@@ -114,49 +117,65 @@ class BasePage:
         self.subscribe_button.click()
 
     # ------------------------------------------------------------------ #
+    def click_and_load(self, target: Locator) -> None:
+        """Click something that navigates, then wait for the destination's
+        `load` event.
+
+        The wait is the important part. Playwright's `click()` returns as
+        soon as the navigation *commits*, not when it finishes loading — but
+        this site attaches many click handlers on `load` (see `_goto`), so
+        the very next action a test takes on the new page can land on a
+        not-yet-wired control. Every navigation in the suite goes through
+        here (or `_goto`) so "the page is ready to be used" is guaranteed in
+        one place, not re-remembered at every call site.
+        """
+        target.click()
+        self.page.wait_for_load_state("load")
+
+    # ------------------------------------------------------------------ #
     # Navigation helpers. Each returns the page object for where you land,
     # so a test reads as a chain: home.open_signup_login().login(...).
     # Imports are INSIDE the methods on purpose: those modules import
     # BasePage, so a top-level import here would be a circular import.
     # ------------------------------------------------------------------ #
     def go_to_products(self):
-        self.products_link.click()
+        self.click_and_load(self.products_link)
         from pages.products_page import ProductsPage
 
         return ProductsPage(self.page)
 
     def go_to_cart(self):
-        self.cart_link.click()
+        self.click_and_load(self.cart_link)
         from pages.cart_page import CartPage
 
         return CartPage(self.page)
 
     def go_to_contact_us(self):
-        self.contact_us_link.click()
+        self.click_and_load(self.contact_us_link)
         from pages.contact_us_page import ContactUsPage
 
         return ContactUsPage(self.page)
 
     def go_to_test_cases(self):
-        self.test_cases_link.click()
+        self.click_and_load(self.test_cases_link)
         from pages.test_cases_page import TestCasesPage
 
         return TestCasesPage(self.page)
 
     def open_signup_login(self):
-        self.signup_login_link.click()
+        self.click_and_load(self.signup_login_link)
         from pages.signup_login_page import SignupLoginPage
 
         return SignupLoginPage(self.page)
 
     def logout(self):
-        self.logout_link.click()
+        self.click_and_load(self.logout_link)
         from pages.signup_login_page import SignupLoginPage
 
         return SignupLoginPage(self.page)
 
     def delete_account(self):
-        self.delete_account_link.click()
+        self.click_and_load(self.delete_account_link)
         from pages.account_status_pages import AccountDeletedPage
 
         return AccountDeletedPage(self.page)

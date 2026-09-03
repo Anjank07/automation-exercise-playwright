@@ -3,6 +3,8 @@ import pytest
 from playwright.sync_api import Page, Route, expect
 
 from config.settings import DEFAULT_TIMEOUT_MS, NAV_TIMEOUT_MS
+from helpers.payment_card import PaymentCard
+from pages.home_page import HomePage
 
 # Hosts that serve ads / analytics / tag managers on automationexercise.com.
 # None of them are part of the application under test, and one of them —
@@ -113,3 +115,25 @@ def _block_third_party(page: Page):
     page.route("**/*", handler)
     yield
     page.unroute("**/*", handler)
+
+
+@pytest.fixture
+def payment_card() -> PaymentCard:
+    return PaymentCard()
+
+
+@pytest.fixture
+def cart_with_products(page: Page) -> list[str]:
+    """Precondition for the cart/checkout tests: two products in the cart.
+
+    Returns their names (read off the grid, not hardcoded) so a test can
+    refer to a specific row. The "add to cart" path itself is under test in
+    test_cart.py::test_add_products_to_cart — here it's just setup, so it's
+    kept terse. Leaves the browser on /products with a populated cart.
+    """
+    products = HomePage(page).load().go_to_products()
+    names: list[str] = []
+    for index in (0, 1):
+        names.append(products.grid.name(index))
+        products.grid.add_to_cart(index).continue_shopping()
+    return names

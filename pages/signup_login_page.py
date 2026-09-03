@@ -61,7 +61,7 @@ class SignupLoginPage(BasePage):
         is just a locator bag, so that's harmless."""
         self.signup_name.fill(name)
         self.signup_email.fill(email)
-        self.signup_button.click()
+        self.click_and_load(self.signup_button)
         from pages.account_information_page import AccountInformationPage
 
         return AccountInformationPage(self.page)
@@ -74,7 +74,7 @@ class SignupLoginPage(BasePage):
         what happened."""
         self.login_email.fill(email)
         self.login_password.fill(password)
-        self.login_button.click()
+        self.click_and_load(self.login_button)
         from pages.home_page import HomePage
 
         return HomePage(self.page)
