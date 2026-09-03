@@ -41,17 +41,26 @@ is optimising for.
 │   ├── user_data.py         # UserData dataclass + build_user() (unique email)
 │   └── account_api.py       # create/delete accounts via the site's REST API
 ├── pages/                  # Page Object Model — locators + actions, no assertions
-│   ├── base_page.py         # shared header/nav (incl. logged-in items)
+│   ├── base_page.py         # shared header/nav + footer subscription
 │   ├── home_page.py
 │   ├── signup_login_page.py
 │   ├── account_information_page.py
 │   ├── account_status_pages.py   # "Account Created!" / "Account Deleted!"
-│   └── products_page.py
+│   ├── contact_us_page.py
+│   ├── products_page.py          # /products listing + search
+│   ├── product_detail_page.py
+│   ├── test_cases_page.py
+│   └── cart_page.py
 ├── tests/
 │   └── ui/
-│       ├── conftest.py      # browser-only fixtures: default timeout, ad blocking
-│       ├── test_home_navigation.py
-│       └── test_auth.py     # Test Cases 1-5 (register / login / logout)
+│       ├── conftest.py      # browser-only fixtures: timeouts, ad blocking,
+│       │                     # dialog auto-accept
+│       ├── assets/          # committed fixtures (Contact Us upload file)
+│       ├── test_home_navigation.py   # TC7 (Test Cases page) lives here too
+│       ├── test_auth.py     # Test Cases 1-5 (register / login / logout)
+│       ├── test_contact.py  # Test Case 6
+│       ├── test_products.py # Test Cases 8-9
+│       └── test_subscription.py  # Test Cases 10-11
 ├── pytest.ini               # base_url, test discovery, markers
 ├── requirements.txt
 └── .env.example
@@ -64,18 +73,26 @@ browser suite for less frequent runs.
 
 ## Locator strategy
 
-Locators use Playwright's role-based API (`get_by_role("link", name=...)`)
-rather than CSS selectors or XPath. This matches how a real user (or a
-screen reader) identifies an element — by its accessible name — rather than
-its position in the DOM, so a markup refactor that doesn't change what the
-page *means* doesn't break the test. It also doubles as a lightweight
-accessibility check: if a role locator stops resolving, the likely cause is
-a genuinely lost accessible name, not just "the test broke."
+Locators are chosen per element, in this priority order:
+
+1. **Role + accessible name** (`get_by_role("button", name="Signup")`) for
+   anything a user perceives — headings, buttons, links. Matches how a real
+   user or screen reader finds the element, so a cosmetic markup refactor
+   doesn't break it, and a broken role locator usually means a real
+   accessibility regression.
+2. **The site's own `data-qa` attributes** (`[data-qa='login-email']`) for
+   form fields. automationexercise.com ships these as purpose-built test
+   hooks; when a site hands you a stable seam, using it beats keying on
+   visible text that a copy edit could change.
+3. **Stable `id` / exact text** as a fallback where neither of the above
+   exists (e.g. the footer's `#susbscribe_email`, the red error paragraphs).
+
+Locators are also **scoped** where a name repeats: nav links go through
+`#header` because the page body has its own "Test Cases" link, etc.
 
 Every locator and assertion in this repo is written against structure that
-was actually inspected first — never guessed. See the comments in
-`pages/base_page.py` and `tests/ui/test_home_navigation.py` for the
-reasoning behind each specific choice.
+was actually inspected first — never guessed. The page objects carry inline
+comments explaining each non-obvious choice.
 
 ## Running it
 
@@ -92,13 +109,27 @@ pytest --headed --browser-channel chrome   # use installed Google Chrome,
 #                                            not bundled Chromium
 ```
 
-## Third-party / ad blocking
+## Handling the site's rough edges
 
-automationexercise.com serves Google ads, including a "vignette" full-page
-interstitial that covers the page and steals the next click. An autouse
-fixture in `tests/ui/conftest.py` aborts every request to a known
-ad/analytics host, so the tests exercise the application and nothing else.
-See that file for why blocking beats "dismiss the ad if it appears".
+automationexercise.com is a real ad-supported site, and three autouse
+fixtures in `tests/ui/conftest.py` absorb the friction so tests stay about
+the application:
+
+- **Ad / analytics blocking** — aborts every request to a known ad host.
+  Google's "vignette" interstitial otherwise covers the page and steals the
+  next click. Blocking the script beats "dismiss the ad if it appears"
+  (which is a race — the ad renders on a timer).
+- **Dialog auto-accept** — the Contact Us form gates submission behind
+  `confirm("Press OK to proceed!")`, and Playwright dismisses un-handled
+  dialogs by default. The handler is a fixture, not page-object code,
+  because it must be registered before the dialog can fire.
+- **Timeouts** — element actions get 10 s, navigation gets 30 s (a full
+  page load here legitimately takes a few seconds), and `expect(...)`
+  assertions are bumped from their 5 s default to match.
+
+One more, in `ContactUsPage.submit()`: an explicit `wait_for_load_state
+("load")` — the script that wires up that form's confirm dialog runs on
+`load`, and the suite otherwise navigates with `domcontentloaded`.
 
 ## Account lifecycle
 
@@ -111,8 +142,11 @@ registration form is.
 ## Status
 
 - **Phase 1 — UI foundation:** complete.
-- **Phase 2 — auth suite:** Test Cases 1-5 (register / login / logout)
-  complete, verified headed on Chrome. API layer (`APIRequestContext`) in
-  use for test-account provisioning.
-- **Next:** Test Cases 6-11 (contact form, info pages, product listing,
-  search, subscription).
+- **Phase 2 — auth suite:** Test Cases 1-5 (register / login / logout).
+  API layer (`APIRequestContext`) in use for test-account provisioning.
+- **Phase 3 — content & catalogue:** Test Cases 6-11 (Contact Us form,
+  Test Cases page, All Products + product detail, product search, footer
+  subscription on home and cart).
+- **Next:** Test Cases 12-17 (cart add/quantity/remove, checkout flows).
+
+All 13 tests pass headed on Chrome (`pytest --headed --browser-channel chrome`).

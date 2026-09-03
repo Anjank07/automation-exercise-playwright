@@ -38,3 +38,17 @@ def test_products_link_navigates_to_products_page(page: Page):
 
     expect(page).to_have_url(re.compile(r"/products"))
     expect(page).to_have_title("Automation Exercise - All Products")
+
+
+def test_test_cases_link_navigates_to_test_cases_page(page: Page):
+    """Test Case 7: Verify Test Cases Page.
+
+    The page <title> here is generic, so arrival is verified by the URL
+    plus the on-page "TEST CASES" heading — both independently inspected.
+    """
+    home = HomePage(page).load()
+
+    test_cases = home.go_to_test_cases()
+
+    expect(page).to_have_url(re.compile(r"/test_cases"))
+    expect(test_cases.heading).to_be_visible()

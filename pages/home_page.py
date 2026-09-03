@@ -17,10 +17,11 @@ class HomePage(BasePage):
     def load(self) -> "HomePage":
         """Navigate to the home page.
 
-        `page.goto("/")` rather than a hardcoded full URL: pytest-playwright
-        resolves relative goto() calls against pytest.ini's `base_url`
-        automatically. Hardcoding the domain here would silently ignore
-        base_url, defeating the point of having one configurable target.
+        `"/"` rather than a hardcoded full URL: pytest-playwright resolves
+        relative navigations against pytest.ini's `base_url` automatically.
+        Hardcoding the domain would silently ignore base_url, defeating the
+        point of one configurable target. `_goto` (see BasePage) handles the
+        wait-strategy nuance.
         """
-        self.page.goto("/")
+        self._goto("/")
         return self

@@ -21,3 +21,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 DEFAULT_TIMEOUT_MS = int(os.getenv("DEFAULT_TIMEOUT_MS", "10000"))
+
+# Navigation gets its own, longer budget. Element actions should be quick
+# (10s is already generous), but a full page navigation on this ad-heavy
+# site legitimately takes a few seconds and occasionally longer when a
+# third-party resource is slow — even with ad hosts blocked. Failing a nav
+# at the same 10s as a click just produces flake, not signal.
+NAV_TIMEOUT_MS = int(os.getenv("NAV_TIMEOUT_MS", "30000"))

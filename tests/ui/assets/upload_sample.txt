@@ -1,0 +1,3 @@
+Sample attachment for the Contact Us form test (Test Case 6).
+This file is committed on purpose so the test is self-contained and does
+not depend on anything outside the repo.

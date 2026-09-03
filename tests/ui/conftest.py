@@ -1,8 +1,8 @@
 """Fixtures that only make sense for UI (browser-driven) tests."""
 import pytest
-from playwright.sync_api import Page, Route
+from playwright.sync_api import Page, Route, expect
 
-from config.settings import DEFAULT_TIMEOUT_MS
+from config.settings import DEFAULT_TIMEOUT_MS, NAV_TIMEOUT_MS
 
 # Hosts that serve ads / analytics / tag managers on automationexercise.com.
 # None of them are part of the application under test, and one of them —
@@ -21,23 +21,63 @@ THIRD_PARTY_HOSTS = (
     "googleadservices.com",
     "doubleclick.net",
     "adservice.google",
+    "adtrafficquality.google",       # Google "ad traffic quality" beacons
+    "fundingchoicesmessages.google",  # Google consent / funding-choices iframe
     "pagead2",
     "adsbygoogle",
     "moatads.com",
     "media.net",
+    "cloudflareinsights.com",        # Cloudflare RUM beacon
+    "google.com/pagead",
+    "google.com/ads",
+    "google.com/gen_204",            # generic Google logging pixel
 )
 
 
 @pytest.fixture(autouse=True)
-def _apply_default_timeout(page: Page):
+def _apply_timeouts(page: Page):
     """
-    Applies our configured default timeout to every action/assertion in
-    every UI test automatically, instead of trusting each test author to
-    remember to set it. Playwright's own built-in default is 30 s; we
-    override it with an explicit, centrally-configured value so timeout
-    behaviour is a decision we made on purpose, not the library's default.
+    Set every timeout from central config, once, for every UI test — so the
+    numbers are a decision we made on purpose, not a mix of library
+    defaults (30 s actions, 5 s assertions) and per-test guesses.
+
+    Three separate knobs, because they're doing different jobs:
+      - actions (click / fill / ...): DEFAULT_TIMEOUT_MS — should be quick.
+      - navigation (goto / nav-click): NAV_TIMEOUT_MS — longer, because a
+        full page load on this ad-heavy site legitimately takes seconds.
+      - `expect(...)` assertions: their own 5 s default is too tight for
+        content that only appears after a POST + full re-render; align it
+        with the action timeout.
     """
     page.set_default_timeout(DEFAULT_TIMEOUT_MS)
+    page.set_default_navigation_timeout(NAV_TIMEOUT_MS)
+    expect.set_options(timeout=DEFAULT_TIMEOUT_MS)
+
+
+@pytest.fixture(autouse=True)
+def _auto_accept_dialogs(page: Page):
+    """
+    Accept every native dialog (`alert` / `confirm` / `prompt`) by default.
+
+    Playwright's out-of-the-box behaviour is to auto-DISMISS any dialog that
+    has no listener — which, for a `confirm()`, means "clicked Cancel". The
+    Contact Us form (Test Case 6) gates submission behind
+    `confirm("Press OK to proceed!")`, so without this the form never
+    submits.
+
+    WHY a fixture and not `page.on(...)` inside the page object: the handler
+    has to be registered before the dialog fires, and registering it only
+    when the ContactUsPage object is constructed (mid-test, after several
+    navigations) races with the click that triggers the dialog and loses
+    intermittently. Wiring it up here — the instant after the `page`
+    fixture creates the page, before any test code runs — removes the race.
+
+    A test that specifically needs to inspect or dismiss a dialog can
+    register its own `page.once("dialog", ...)`; the last-registered
+    handler wins.
+    """
+    page.on("dialog", lambda dialog: dialog.accept())
+    yield
 
 
 @pytest.fixture(autouse=True)

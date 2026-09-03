@@ -50,7 +50,7 @@ class SignupLoginPage(BasePage):
         self.signup_error = page.get_by_text("Email Address already exist!")
 
     def load(self) -> "SignupLoginPage":
-        self.page.goto(self.URL)
+        self._goto(self.URL)
         return self
 
     def start_signup(self, name: str, email: str):
