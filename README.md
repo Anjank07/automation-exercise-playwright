@@ -1,6 +1,6 @@
 # Automation Exercise — Playwright + Python Suite
 
-[![CI](https://github.com/Anjank07/automation-exercise-playwright/actions/workflows/ci.yml/badge.svg)](https://github.com/Anjank07/automation-exercise-playwright/actions/workflows/ci.yml)
+[![CI: push quality gate](https://github.com/Anjank07/automation-exercise-playwright/actions/workflows/ci.yml/badge.svg?event=push)](https://github.com/Anjank07/automation-exercise-playwright/actions/workflows/ci.yml)
 
 UI **and** API test automation for [automationexercise.com](https://automationexercise.com),
 a public practice site chosen specifically because it exposes both a normal
@@ -243,6 +243,17 @@ Decisions behind it:
   carries an embedded full-page screenshot, and the artifact also holds
   its Playwright trace — a step-by-step replay with DOM snapshots and
   network log — so a CI failure can be debugged without re-running it.
+- **Third-party site, honest results.** automationexercise.com is a shared
+  public site behind an anti-bot filter, and it sometimes answers a CI
+  runner with a "Please wait while your request is being verified..."
+  page instead of the app (seen on the Chromium leg of the first nightly
+  run, while the Firefox leg passed 30/30 in the same minute). The suite
+  does not try to get around that filter. Such a run fails visibly: the
+  embedded screenshot shows the verification page, and API-provisioned
+  tests say "anti-bot verification page instead of JSON" rather than a
+  confusing parse error. So a red nightly can be triaged in seconds as
+  infrastructure, not a product defect. On a product you own, the fix is
+  to allowlist CI traffic at the WAF.
 - **Hygiene.** `permissions: contents: read` (least privilege),
   `concurrency` cancels runs for superseded commits, pip caching, per-job
   timeouts so a hung browser can't burn runner minutes, and Dependabot PRs
