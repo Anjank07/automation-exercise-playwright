@@ -17,10 +17,11 @@ options (Country must be one of the seven the form offers; the birth selects
 are 1-based strings because that's what the <option value="..."> attributes
 are). They were copied from the real form, not guessed.
 """
+
 from __future__ import annotations
 
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 def _unique_email() -> str:
