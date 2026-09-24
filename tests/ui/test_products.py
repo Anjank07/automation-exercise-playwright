@@ -2,6 +2,7 @@
 Test Case 8: Verify All Products and product detail page
 Test Case 9: Search Product
 """
+import pytest
 from playwright.sync_api import Page, expect
 
 from pages.home_page import HomePage
@@ -31,20 +32,33 @@ def test_all_products_and_product_detail(page: Page):
     expect(detail.brand).to_be_visible()
 
 
-def test_search_product(page: Page):
+# Data-driven: one test body, several search terms. `pytest.param(...,
+# marks=...)` puts only the "dress" case in the smoke subset — the push gate
+# needs one proof that search works, the nightly run covers every term.
+# The ids make each case read as its own line in the report:
+# test_search_product[chromium-dress], [chromium-top], ...
+@pytest.mark.parametrize(
+    "term",
+    [
+        pytest.param("dress", marks=pytest.mark.smoke, id="dress"),
+        pytest.param("top", id="top"),
+        pytest.param("jean", id="jean"),
+    ],
+)
+def test_search_product(page: Page, term: str):
     """TC9: search returns a SEARCHED PRODUCTS grid of relevant results."""
     home = HomePage(page).load()
     products = home.go_to_products()
     expect(products.all_products_heading).to_be_visible()
 
-    products.search("dress")
+    products.search(term)
 
     expect(products.searched_products_heading).to_be_visible()  # "SEARCHED PRODUCTS"
 
     names = products.result_names()
-    assert names, "search returned no products"
+    assert names, f"search for {term!r} returned no products"
     # The site's search is tag-based, not a literal substring filter, so a
-    # few hits (e.g. matching outfits) won't contain the word 'dress'.
+    # few hits (e.g. matching outfits) won't contain the search word.
     # Asserting 'every result contains the term' would be a false failure;
     # asserting the clear matches ARE there is the honest check.
-    assert any("dress" in name.lower() for name in names), names
+    assert any(term in name.lower() for name in names), names

@@ -5,6 +5,7 @@ Test Case 17: Remove Products From Cart
 Test Case 20: Search Products and Verify Cart After Login
 Test Case 22: Add to cart from Recommended items
 """
+import pytest
 from playwright.sync_api import Page, expect
 
 from helpers.user_data import UserData
@@ -12,6 +13,7 @@ from pages.cart_page import CartPage
 from pages.home_page import HomePage
 
 
+@pytest.mark.smoke
 def test_add_products_to_cart(page: Page):
     """TC12: add two products from the listing, verify both land in the cart
     with the right price / quantity / line total."""

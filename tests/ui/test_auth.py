@@ -15,6 +15,7 @@ Reading guide:
 """
 import re
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from helpers.user_data import UserData
@@ -50,6 +51,7 @@ def test_register_new_user(page: Page, new_user: UserData):
     deleted.click_continue()
 
 
+@pytest.mark.smoke
 def test_login_with_valid_credentials(page: Page, registered_user: UserData):
     """TC2: Login User with correct email and password.
 

@@ -10,6 +10,7 @@ differing only in WHEN the account is created / signed into relative to
 filling the cart. Each ends by deleting its account through the UI (the
 fixtures' API cleanup is the backstop if an assertion fails first).
 """
+import pytest
 from playwright.sync_api import Page, expect
 
 from helpers.payment_card import PaymentCard
@@ -96,6 +97,7 @@ def test_place_order_register_before_checkout(
     expect(home.delete_account().heading).to_be_visible()
 
 
+@pytest.mark.smoke
 def test_place_order_login_before_checkout(
     page: Page, registered_user: UserData, payment_card: PaymentCard,
 ):

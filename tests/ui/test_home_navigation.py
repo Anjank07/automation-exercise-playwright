@@ -14,11 +14,13 @@ reason.
 """
 import re
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from pages.home_page import HomePage
 
 
+@pytest.mark.smoke
 def test_homepage_loads(page: Page):
     HomePage(page).load()
 
@@ -31,6 +33,7 @@ def test_homepage_loads(page: Page):
     expect(page).to_have_title("Automation Exercise")
 
 
+@pytest.mark.smoke
 def test_products_link_navigates_to_products_page(page: Page):
     home = HomePage(page).load()
 
