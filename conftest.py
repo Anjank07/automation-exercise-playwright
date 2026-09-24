@@ -25,6 +25,22 @@ from helpers.user_data import UserData, build_user
 
 
 @pytest.fixture(scope="session")
+def base_url(pytestconfig: pytest.Config) -> str:
+    """The site under test: `--base-url` if given, else pytest.ini's `base_url`.
+
+    WHY override the plugin's fixture: pytest-base-url copies the ini value
+    into the options in `pytest_configure`, but deliberately skips that hook
+    on pytest-xdist worker processes — so under `-n N` every worker saw
+    `base_url=None`, and every relative `goto("/...")` / API call failed with
+    "Invalid URL". (The first CI run caught this: the serial API job passed,
+    the parallel UI job failed at setup.) Reading the ini directly works the
+    same in the main process and in every worker. pytest-playwright builds
+    each browser context from this fixture, so pages pick it up too.
+    """
+    return pytestconfig.getoption("base_url") or pytestconfig.getini("base_url")
+
+
+@pytest.fixture(scope="session")
 def api_request_context(playwright: Playwright, base_url: str):
     """A Playwright APIRequestContext pointed at the site under test.
 
