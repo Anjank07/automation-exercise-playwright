@@ -10,9 +10,13 @@ Root conftest.py — two jobs:
 
 2. Fixtures shared across BOTH the UI and API layers live here. Fixtures
    that only make sense for browser-driven tests live in
-   tests/ui/conftest.py instead, so a future pure-API test isn't forced to
-   launch a browser it doesn't need.
+   tests/ui/conftest.py instead, so the API suite (tests/api) never
+   launches a browser it doesn't need.
+
+It also tags every test with its layer marker (`ui` / `api`) from the
+folder it lives in — see `pytest_collection_modifyitems` below.
 """
+
 import pytest
 from playwright.sync_api import APIRequestContext, Playwright
 
@@ -31,9 +35,7 @@ def api_request_context(playwright: Playwright, base_url: str):
       because each call passes its own credentials.
     - `.dispose()` in teardown closes the underlying connection pool.
     """
-    request_context: APIRequestContext = playwright.request.new_context(
-        base_url=base_url
-    )
+    request_context: APIRequestContext = playwright.request.new_context(base_url=base_url)
     yield request_context
     request_context.dispose()
 
@@ -71,3 +73,23 @@ def registered_user(account_api: AccountApi) -> UserData:
     account_api.create(user)
     yield user
     account_api.delete_if_exists(user.email, user.password)
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    """Tag each test `ui` or `api` from its folder, so `-m api` / `-m ui` work.
+
+    WHY derive it from the path instead of writing `@pytest.mark.ui` on every
+    test: the folder already IS the classification. A hand-written marker is
+    one more thing a new test can forget, and a forgotten marker means a test
+    silently drops out of a filtered CI run. Deriving it makes that mistake
+    impossible. Markers that carry a real decision — `smoke`, i.e. "this test
+    is on the critical path and gates every push" — stay explicit.
+    """
+    tests_root = config.rootpath / "tests"
+    for item in items:
+        try:
+            layer = item.path.relative_to(tests_root).parts[0]
+        except ValueError:  # a test outside tests/ — leave it untagged
+            continue
+        if layer in ("ui", "api"):
+            item.add_marker(layer)

@@ -1,0 +1,9 @@
+# Optional local hook: `pip install pre-commit && pre-commit install` runs the
+# same ruff lint CI runs, on every `git commit`, so a lint failure is caught
+# in seconds locally instead of minutes later in CI.
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.8
+    hooks:
+      - id: ruff
+        args: [--fix]

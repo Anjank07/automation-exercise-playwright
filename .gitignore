@@ -7,3 +7,5 @@ test-results/
 playwright-report/
 .vscode/
 .idea/
+.ruff_cache/
+reports/

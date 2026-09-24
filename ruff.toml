@@ -1,0 +1,16 @@
+# Lint config, enforced in CI (`ruff check`). Ruff replaces flake8 + isort +
+# pyupgrade (and several flake8 plugins) in one fast tool, so there is exactly
+# one linter to install and one config file to read.
+line-length = 100
+target-version = "py310"
+
+[lint]
+select = [
+    "E", "W",  # pycodestyle
+    "F",       # pyflakes: unused imports/variables, undefined names
+    "I",       # isort: import order
+    "B",       # flake8-bugbear: likely bugs (mutable defaults, etc.)
+    "UP",      # pyupgrade: modern syntax for the target Python
+    "PT",      # flake8-pytest-style: fixture/parametrize conventions
+    "SIM",     # flake8-simplify
+]
