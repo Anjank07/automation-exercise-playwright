@@ -19,7 +19,11 @@ class CategorySidebar:
         self.root = page.locator("#accordian")
 
     def _expand(self, category: str) -> None:
-        assert category in self._PANELS, f"unknown category {category!r}"
+        # A ValueError, not `assert`: asserts are stripped under `python -O`,
+        # and a typo'd category should fail loudly with a clear message
+        # rather than as a confusing "#Womens not visible" timeout 10 s later.
+        if category not in self._PANELS:
+            raise ValueError(f"unknown category {category!r}; expected one of {self._PANELS}")
         panel = self.page.locator(f"#{category}")
         # Only click the toggle if the panel isn't already open — clicking an
         # open panel's toggle would collapse it. (The accordion's

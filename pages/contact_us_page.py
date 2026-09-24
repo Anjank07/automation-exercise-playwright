@@ -1,6 +1,5 @@
 """ContactUsPage: the form at /contact_us."""
 from pathlib import Path
-from typing import Union
 
 from playwright.sync_api import Page
 
@@ -47,7 +46,7 @@ class ContactUsPage(BasePage):
 
     def fill_form(
         self, name: str, email: str, subject: str, message: str,
-        upload: Union[str, Path],
+        upload: str | Path,
     ) -> "ContactUsPage":
         self.name.fill(name)
         self.email.fill(email)

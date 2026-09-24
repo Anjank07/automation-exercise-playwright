@@ -29,7 +29,11 @@ class OrderPlacedPage(BasePage):
         return download_info.value
 
     def click_continue(self):
-        self.continue_button.click()
+        # Navigates to the home page, so it goes through click_and_load like
+        # every other navigating click (see BasePage): the next step in the
+        # checkout tests is "Delete Account", a JS-wired control that must not
+        # be clicked before `load`.
+        self.click_and_load(self.continue_button)
         from pages.home_page import HomePage
 
         return HomePage(self.page)
