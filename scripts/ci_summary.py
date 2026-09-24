@@ -29,27 +29,40 @@ def summarize(junit_path: Path, title: str) -> str:
         return f"### {title}\n\nNo JUnit report found at `{junit_path}`.\n"
 
     root = ET.parse(junit_path).getroot()
-    suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
 
-    total = failed = errored = skipped = 0
+    # Count per TEST CASE, not per <failure>/<error> element. A test that
+    # fails in its body AND errors in teardown carries both elements, so
+    # totals taken from the suite attributes double-count it (an early
+    # version of this script reported "-3 passed" on exactly that).
+    rank = {"passed": 0, "skipped": 1, "error": 2, "failed": 3}
+    outcome: dict[str, str] = {}
+    reasons: dict[str, str] = {}
     seconds = 0.0
-    failures: list[tuple[str, str]] = []
-    for suite in suites:
-        total += int(suite.get("tests", 0))
-        failed += int(suite.get("failures", 0))
-        errored += int(suite.get("errors", 0))
-        skipped += int(suite.get("skipped", 0))
-        seconds += float(suite.get("time", 0))
-        for case in suite.iter("testcase"):
-            problem = case.find("failure")
-            if problem is None:
-                problem = case.find("error")
-            if problem is not None:
-                name = f"{case.get('classname', '')}::{case.get('name', '')}"
-                message = (problem.get("message") or "").strip().splitlines()
-                failures.append((name, message[0][:200] if message else ""))
+    for case in root.iter("testcase"):
+        name = f"{case.get('classname', '')}::{case.get('name', '')}"
+        seconds += float(case.get("time", 0))
+        failure, error = case.find("failure"), case.find("error")
+        if failure is not None:
+            state = "failed"
+        elif error is not None:
+            state = "error"
+        elif case.find("skipped") is not None:
+            state = "skipped"
+        else:
+            state = "passed"
+        if rank[state] >= rank[outcome.get(name, "passed")]:
+            outcome[name] = state
+        problem = failure if failure is not None else error
+        if problem is not None and name not in reasons:
+            lines = (problem.get("message") or "").strip().splitlines()
+            reasons[name] = lines[0][:200] if lines else ""
 
-    passed = total - failed - errored - skipped
+    states = list(outcome.values())
+    total = len(states)
+    passed, failed = states.count("passed"), states.count("failed")
+    errored, skipped = states.count("error"), states.count("skipped")
+    failures = [(n, reasons.get(n, "")) for n, v in outcome.items() if v in ("failed", "error")]
+
     icon = "✅" if not (failed or errored) else "❌"
     lines = [
         f"### {icon} {title}",
