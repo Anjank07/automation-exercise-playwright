@@ -1,0 +1,16 @@
+# Weekly PRs to bump pinned dependencies and GitHub Actions versions. Each
+# bump runs through the same CI as any other change, so an upgrade that
+# breaks the suite is caught in its PR instead of on someone's laptop.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      playwright-and-pytest:
+        patterns: ["playwright", "pytest*"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
