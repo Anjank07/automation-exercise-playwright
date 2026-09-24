@@ -41,8 +41,14 @@ class ApiResponse:
         try:
             body = json.loads(text)
         except json.JSONDecodeError as exc:
-            # e.g. a Cloudflare challenge page or a 5xx HTML error page — say
+            # e.g. an anti-bot challenge page or a 5xx HTML error page — say
             # so plainly instead of failing later on a confusing KeyError.
+            if "request is being verified" in text:
+                raise AssertionError(
+                    f"{response.url} answered with the site's anti-bot verification "
+                    "page instead of JSON — this runner was challenged by the WAF; "
+                    "an infrastructure problem, not an API defect"
+                ) from exc
             raise AssertionError(
                 f"{response.url} returned non-JSON (HTTP {response.status}): {text[:300]!r}"
             ) from exc
