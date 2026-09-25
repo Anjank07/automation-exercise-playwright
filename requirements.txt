@@ -1,10 +1,10 @@
 # Pinned to the versions this suite is developed and verified against.
 # `pip install -r requirements.txt` then `playwright install chromium`.
-playwright==1.60.0
-pytest==9.0.3
-pytest-playwright==0.8.0
+playwright==1.63.0
+pytest==9.1.1
+pytest-playwright==0.9.0
 pytest-base-url==2.1.0
-pytest-rerunfailures==16.6.1
+pytest-rerunfailures==16.7
 pytest-xdist==3.8.0     # -n N: run tests in parallel worker processes
 pytest-html==4.2.0      # --html=...: self-contained HTML report (CI artifact)
 python-dotenv==1.2.3
