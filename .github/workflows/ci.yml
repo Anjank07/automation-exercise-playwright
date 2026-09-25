@@ -39,6 +39,7 @@ concurrency:
 env:
   PYTHON_VERSION: "3.12"
   FORCE_COLOR: "1"
+  BASE_URL: "https://automationexercise.com"  # ← Add this
 
 jobs:
   lint:
@@ -72,9 +73,10 @@ jobs:
       - run: pip install -r requirements.txt
       # No `playwright install`: APIRequestContext needs the Playwright
       # driver (bundled in the pip wheel) but no browser binary.
-      - name: Run API suite
-        run: >-
-          pytest tests/api --junitxml=reports/junit.xml
+      - - name: Run API suite
+  run: >-
+    pytest tests/api --base-url ${{ env.BASE_URL }}
+    --junitxml=reports/junit.xml
           --html=reports/api-report.html --self-contained-html
       - name: Summarize results
         if: ${{ !cancelled() }}
@@ -110,11 +112,15 @@ jobs:
         # which is exactly how a CPU-starved runner turns into spurious
         # timeouts under load. auto sidesteps guessing at GitHub's current
         # runner spec (it can and does change) entirely.
+        - name: Run UI smoke suite
+  # ... existing comments ...
+  # --base-url: REQUIRED for parallel test execution. pytest-xdist
+  # worker processes don't receive the base_url from pytest-base-url
+  # plugin (by design), so we pass it explicitly to every worker.
         run: >-
-          pytest tests/ui -m smoke --browser chromium -n auto
-          --tracing retain-on-failure --screenshot only-on-failure
-          --junitxml=reports/junit.xml
-          --html=reports/ui-smoke-report.html --self-contained-html
+        pytest tests/ui -m smoke --browser chromium -n auto
+         -base-url ${{ env.BASE_URL }}
+        --tracing retain-on-failure --screenshot only-on-failure
       - name: Summarize results
         if: ${{ !cancelled() }}
         run: python scripts/ci_summary.py reports/junit.xml "UI smoke (chromium)"
@@ -154,11 +160,13 @@ jobs:
         # Tests are independent — each gets its own browser context and
         # uniquely-emailed user — so they parallelise safely regardless of
         # worker count.
+        - name: Run full UI suite
+  # ... existing comments ...
+  # --base-url: REQUIRED for parallel test execution (see ui-smoke comment).
         run: >-
-          pytest tests/ui --browser ${{ matrix.browser }} -n auto
-          --tracing retain-on-failure --screenshot only-on-failure
-          --junitxml=reports/junit.xml
-          --html=reports/ui-regression-${{ matrix.browser }}.html --self-contained-html
+         pytest tests/ui --browser ${{ matrix.browser }} -n auto
+         --base-url ${{ env.BASE_URL }}
+         --tracing retain-on-failure --screenshot only-on-failure
       - name: Summarize results
         if: ${{ !cancelled() }}
         run: python scripts/ci_summary.py reports/junit.xml "UI regression (${{ matrix.browser }})"
