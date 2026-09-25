@@ -53,6 +53,8 @@ is optimising for.
 │   ├── user_data.py         # UserData dataclass + build_user() (unique email)
 │   ├── api_response.py      # parses the API's JSON `responseCode` (HTTP is always 200)
 │   ├── account_api.py       # account endpoints: fixtures' provisioning + API tests' client
+│   ├── anti_bot.py          # shared WAF-challenge marker + AntiBotChallengeError
+│   │                         # (used by api_response.py AND pages/base_page.py)
 │   └── payment_card.py      # PaymentCard dataclass (checkout tests)
 ├── pages/                  # Page Object Model — locators + actions, no assertions
 │   ├── base_page.py         # shared header/nav + footer subscription
@@ -245,15 +247,34 @@ Decisions behind it:
   network log — so a CI failure can be debugged without re-running it.
 - **Third-party site, honest results.** automationexercise.com is a shared
   public site behind an anti-bot filter, and it sometimes answers a CI
-  runner with a "Please wait while your request is being verified..."
-  page instead of the app (seen on the Chromium leg of the first nightly
-  run, while the Firefox leg passed 30/30 in the same minute). The suite
-  does not try to get around that filter. Such a run fails visibly: the
-  embedded screenshot shows the verification page, and API-provisioned
-  tests say "anti-bot verification page instead of JSON" rather than a
-  confusing parse error. So a red nightly can be triaged in seconds as
-  infrastructure, not a product defect. On a product you own, the fix is
-  to allowlist CI traffic at the WAF.
+  runner with a "Please wait while your request is being verified..." page
+  instead of the app — seen on the Chromium leg of the first nightly run
+  while Firefox passed 30/30 in the same minute, and on **both** legs of a
+  later run (the filter appears to key on the runner's network range, not
+  the browser, so which legs it hits varies run to run). The suite does
+  not try to get around that filter; it names the hit instead, in both
+  places it can happen:
+  - `helpers/anti_bot.py` holds the shared marker + a dedicated
+    `AntiBotChallengeError`, raised by `helpers/api_response.py` on a
+    challenged API response and by `BasePage` (`_goto` /
+    `click_and_load` — every navigation goes through one of the two) on a
+    challenged page. Either shows up as a named, readable error — "the
+    site's anti-bot verification page instead of JSON/the app" — not a
+    generic parse error or a locator timeout that sends you hunting for a
+    broken selector that was never the problem.
+  - `pytest.ini`'s `--only-rerun` targets `AntiBotChallengeError`
+    specifically (alongside timeout-shaped errors), so a same-run retry
+    gets one more chance before the failure is final.
+  - `-n auto`, not a hardcoded worker count, on both UI jobs: a fixed `-n 4`
+    on a runner with fewer cores than that oversubscribes it, and enough
+    browser processes competing for too few cores turns into exactly the
+    kind of timeout this section is about — self-inflicted, not the site's
+    doing. `auto` sizes to whatever the runner actually has.
+
+  So a red nightly can still be triaged in seconds — the report says which
+  of "the site challenged us" or "an assertion actually failed" happened —
+  rather than looking uniformly red. On a product you own, the real fix is
+  to allowlist CI traffic at the WAF; here, it's out of scope on purpose.
 - **Hygiene.** `permissions: contents: read` (least privilege),
   `concurrency` cancels runs for superseded commits, pip caching, per-job
   timeouts so a hung browser can't burn runner minutes, and Dependabot PRs

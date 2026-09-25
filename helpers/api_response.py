@@ -24,6 +24,9 @@ from typing import Any
 
 from playwright.sync_api import APIResponse
 
+from helpers.anti_bot import MARKER as ANTI_BOT_MARKER
+from helpers.anti_bot import AntiBotChallengeError
+
 
 @dataclass(frozen=True)
 class ApiResponse:
@@ -43,8 +46,8 @@ class ApiResponse:
         except json.JSONDecodeError as exc:
             # e.g. an anti-bot challenge page or a 5xx HTML error page — say
             # so plainly instead of failing later on a confusing KeyError.
-            if "request is being verified" in text:
-                raise AssertionError(
+            if ANTI_BOT_MARKER in text:
+                raise AntiBotChallengeError(
                     f"{response.url} answered with the site's anti-bot verification "
                     "page instead of JSON — this runner was challenged by the WAF; "
                     "an infrastructure problem, not an API defect"

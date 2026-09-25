@@ -103,8 +103,15 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m playwright install --with-deps chromium
       - name: Run UI smoke suite
+        # -n auto: one xdist worker per available CPU, not a hardcoded
+        # number. A hardcoded worker count that happens to exceed the
+        # runner's actual cores oversubscribes it — N browser processes
+        # competing for fewer cores than that run slower across the board,
+        # which is exactly how a CPU-starved runner turns into spurious
+        # timeouts under load. auto sidesteps guessing at GitHub's current
+        # runner spec (it can and does change) entirely.
         run: >-
-          pytest tests/ui -m smoke --browser chromium -n 3
+          pytest tests/ui -m smoke --browser chromium -n auto
           --tracing retain-on-failure --screenshot only-on-failure
           --junitxml=reports/junit.xml
           --html=reports/ui-smoke-report.html --self-contained-html
@@ -143,11 +150,12 @@ jobs:
       - run: pip install -r requirements.txt
       - run: python -m playwright install --with-deps ${{ matrix.browser }}
       - name: Run full UI suite
-        # -n 4: four parallel workers (pytest-xdist). Tests are independent —
-        # each gets its own browser context and uniquely-emailed user — so
-        # they parallelise safely; 4 keeps load on the public site modest.
+        # -n auto (see ui-smoke above for why, not a hardcoded count).
+        # Tests are independent — each gets its own browser context and
+        # uniquely-emailed user — so they parallelise safely regardless of
+        # worker count.
         run: >-
-          pytest tests/ui --browser ${{ matrix.browser }} -n 4
+          pytest tests/ui --browser ${{ matrix.browser }} -n auto
           --tracing retain-on-failure --screenshot only-on-failure
           --junitxml=reports/junit.xml
           --html=reports/ui-regression-${{ matrix.browser }}.html --self-contained-html
