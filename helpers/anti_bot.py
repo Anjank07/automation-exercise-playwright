@@ -18,9 +18,15 @@ alike — and neither is a test or product defect:
      never retries. One unrecognised infra page turned a flaky-but-mostly-
      green nightly into a red one every single night.
 
-Both transports that can hit these pages call `raise_if_site_unavailable`:
+Three places use it:
   - helpers/api_response.py on the raw response body (JSON expected);
-  - pages/base_page.py on the rendered page after every navigation.
+  - pages/base_page.py on the rendered page after every navigation
+    (`_goto` / `click_and_load`) — fails fast, with a precise message;
+  - tests/ui/conftest.py as the safety net for everything else: a form
+    submitted with a plain `.click()`, or an AJAX call (add-to-cart) that
+    got a 503 while the page itself looked fine. Those never pass through
+    BasePage's chokepoints, so a failing UI test is re-classified after the
+    fact if the site was shedding load while it ran.
 
 One function, one place to add a marker if the site's wording changes, and
 one exception family that pytest.ini's --only-rerun targets by name.
@@ -54,6 +60,24 @@ class SiteOverloadedError(SiteUnavailableError):
     """The site shed the request: HTTP 503 / "under heavy load (queue full)"."""
 
 
+def detect_site_unavailable(
+    text: str, status: int | None = None
+) -> type[SiteUnavailableError] | None:
+    """Which infra page `text` is, if any — without raising.
+
+    Split out from `raise_if_site_unavailable` for tests/ui/conftest.py,
+    which needs to *classify* a failure that has already happened (e.g. an
+    expect() that timed out on an overload page reached by a plain form
+    submit) rather than raise a fresh one at a navigation chokepoint.
+    """
+    lowered = text.lower()
+    if ANTI_BOT_MARKER in lowered:
+        return AntiBotChallengeError
+    if status == 503 or any(marker in lowered for marker in OVERLOAD_MARKERS):
+        return SiteOverloadedError
+    return None
+
+
 def raise_if_site_unavailable(text: str, url: str, status: int | None = None) -> None:
     """Raise a named SiteUnavailableError if `text` is an infra page, not the app.
 
@@ -63,15 +87,15 @@ def raise_if_site_unavailable(text: str, url: str, status: int | None = None) ->
     with an unfamiliar body is still classified as overload rather than
     falling through to a generic "non-JSON" assertion.
     """
-    lowered = text.lower()
-    if ANTI_BOT_MARKER in lowered:
+    error = detect_site_unavailable(text, status)
+    if error is AntiBotChallengeError:
         raise AntiBotChallengeError(
             f"{url} answered with the site's anti-bot verification page instead "
             "of the app — this runner was challenged by the WAF; an "
             "infrastructure problem, not a test or product defect. See README "
             "'Third-party site, honest results'."
         )
-    if status == 503 or any(marker in lowered for marker in OVERLOAD_MARKERS):
+    if error is SiteOverloadedError:
         raise SiteOverloadedError(
             f"{url} answered with the site's overload page (HTTP "
             f"{status if status is not None else 'n/a'}: 'under heavy load / queue "
