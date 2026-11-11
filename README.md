@@ -268,6 +268,13 @@ Decisions behind it:
     verification page / overload page instead of the app" — not a generic
     parse error or a locator timeout that sends you hunting for a broken
     selector that was never the problem.
+  - Safety net in `tests/ui/conftest.py`: not every request goes through
+    those chokepoints (a form submitted with a plain `.click()`, the
+    add-to-cart XHR). A `pytest_runtest_call` / `pytest_runtest_setup`
+    wrapper re-raises a failing UI test as `SiteOverloadedError` /
+    `AntiBotChallengeError` (original chained) **only** if the page on
+    screen is an infra page or the site answered a request with 503 during
+    that test. Without that evidence the original failure stands.
   - `pytest.ini`'s `--only-rerun` targets both error classes by name
     (alongside timeout-shaped errors), with a 10s delay so an overloaded
     site's queue can drain, so a same-run retry gets two more chances
