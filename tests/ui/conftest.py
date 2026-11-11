@@ -1,13 +1,20 @@
 """Fixtures that only make sense for UI (browser-driven) tests."""
 
 import base64
+import contextlib
 import re
-from collections.abc import Callable
+from collections.abc import Callable, Generator
+from urllib.parse import urlparse
 
 import pytest
-from playwright.sync_api import Dialog, Page, expect
+from playwright.sync_api import Dialog, Page, Response, expect
 
 from config.settings import DEFAULT_TIMEOUT_MS, NAV_TIMEOUT_MS
+from helpers.anti_bot import (
+    SiteOverloadedError,
+    SiteUnavailableError,
+    detect_site_unavailable,
+)
 from helpers.payment_card import PaymentCard
 from pages.home_page import HomePage
 
@@ -143,6 +150,106 @@ def _block_third_party(page: Page):
         launch flag, harder to see and change than this list.
     """
     page.route(AD_HOST_PATTERN, lambda route: route.abort())
+
+
+# --------------------------------------------------------------------------- #
+# Site overload / WAF safety net
+# --------------------------------------------------------------------------- #
+# Per-test record of first-party requests the site answered with HTTP 503.
+_SHED_REQUESTS = pytest.StashKey[list[str]]()
+
+
+@pytest.fixture(autouse=True)
+def _record_shed_requests(page: Page, base_url: str, request: pytest.FixtureRequest) -> None:
+    """Note every request to the site under test that came back HTTP 503.
+
+    WHY: BasePage catches the overload page at its two navigation
+    chokepoints, but plenty of traffic never passes through them — a login
+    form submitted with a plain `.click()`, or the add-to-cart XHR. When the
+    site sheds one of THOSE, the test fails later on an innocent-looking
+    assertion ("expected text '4'", "login error not visible") on a page
+    that may not even show the overload message. This listener is how the
+    reclassification hooks below know the site was overloaded mid-test.
+
+    Only the site's own host counts: a 503 from some CDN the page pulls in
+    is not evidence the app under test was down. Stored on the item's stash
+    (reset per attempt) so the hooks can read it without a fixture handle.
+    """
+    host = urlparse(base_url).hostname
+    shed: list[str] = []
+    request.node.stash[_SHED_REQUESTS] = shed
+
+    def on_response(response: Response) -> None:
+        if response.status == 503 and urlparse(response.url).hostname == host:
+            shed.append(f"{response.request.method} {response.url}")
+
+    page.on("response", on_response)
+
+
+def _as_site_unavailable(item: pytest.Item, exc: BaseException) -> SiteUnavailableError | None:
+    """If the site was serving an infra page when `exc` happened, say so.
+
+    Two independent signals, either is enough:
+      1. the page on screen right now IS an infra page (overload / WAF);
+      2. the site answered at least one request with 503 during this test.
+    Neither present -> None, and the original failure stands untouched:
+    that's a real finding and must not be retried.
+    """
+    page = getattr(item, "funcargs", {}).get("page")
+    content = ""
+    if page is not None:
+        # Browser already gone -> no page signal; fall back to signal 2.
+        with contextlib.suppress(Exception):
+            content = page.content()
+    shed = item.stash.get(_SHED_REQUESTS, [])
+    error = detect_site_unavailable(content) or (SiteOverloadedError if shed else None)
+    if error is None:
+        return None
+    evidence = f"503 for: {', '.join(shed[:3])}" if shed else "infra page on screen"
+    return error(
+        f"{type(exc).__name__} happened while the site was serving its "
+        f"{'WAF challenge' if error is not SiteOverloadedError else 'overload'} "
+        f"page ({evidence}) — infrastructure, not a test or product defect. "
+        "Original failure is chained below."
+    )
+
+
+def _reclassify_infra_failures(item: pytest.Item) -> Generator[None, object, object]:
+    try:
+        return (yield)
+    except SiteUnavailableError:
+        raise  # already named (BasePage / ApiResponse caught it directly)
+    except Exception as exc:
+        infra = _as_site_unavailable(item, exc)
+        if infra is None:
+            raise
+        raise infra from exc
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_setup(item: pytest.Item):
+    """Reclassify setup failures too: `cart_with_products` drives the UI."""
+    return (yield from _reclassify_infra_failures(item))
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_call(item: pytest.Item):
+    """Re-raise a UI test failure as SiteOverloadedError / AntiBotChallengeError
+    when the site was demonstrably not serving the app at the time.
+
+    WHY here: pytest-rerunfailures decides "retry or not" from the exception
+    the test raised (matched against pytest.ini's --only-rerun). An
+    `expect()` on an overload page raises a plain AssertionError, which is
+    — correctly — never retried. Wrapping the test call lets us swap in a
+    named infra error *before* pytest and rerunfailures see it, with the
+    original chained (`raise ... from exc`) so the report still shows the
+    exact assertion that tripped. No test has to remember to do anything.
+
+    WHY not just broaden --only-rerun to "AssertionError": that would retry
+    genuine regressions too, which is the one thing the rerun policy exists
+    to prevent.
+    """
+    return (yield from _reclassify_infra_failures(item))
 
 
 @pytest.hookimpl(hookwrapper=True)
