@@ -24,8 +24,7 @@ from typing import Any
 
 from playwright.sync_api import APIResponse
 
-from helpers.anti_bot import MARKER as ANTI_BOT_MARKER
-from helpers.anti_bot import AntiBotChallengeError
+from helpers.anti_bot import raise_if_site_unavailable
 
 
 @dataclass(frozen=True)
@@ -44,14 +43,11 @@ class ApiResponse:
         try:
             body = json.loads(text)
         except json.JSONDecodeError as exc:
-            # e.g. an anti-bot challenge page or a 5xx HTML error page — say
-            # so plainly instead of failing later on a confusing KeyError.
-            if ANTI_BOT_MARKER in text:
-                raise AntiBotChallengeError(
-                    f"{response.url} answered with the site's anti-bot verification "
-                    "page instead of JSON — this runner was challenged by the WAF; "
-                    "an infrastructure problem, not an API defect"
-                ) from exc
+            # e.g. an anti-bot challenge page, the site's 503 overload page, or
+            # some other HTML error page — say so plainly instead of failing
+            # later on a confusing KeyError. The two known infra pages raise a
+            # named, retryable error; anything else is a genuine surprise.
+            raise_if_site_unavailable(text, response.url, response.status)
             raise AssertionError(
                 f"{response.url} returned non-JSON (HTTP {response.status}): {text[:300]!r}"
             ) from exc
