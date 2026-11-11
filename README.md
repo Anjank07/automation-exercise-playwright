@@ -276,9 +276,9 @@ Decisions behind it:
     screen is an infra page or the site answered a request with 503 during
     that test. Without that evidence the original failure stands.
   - `pytest.ini`'s `--only-rerun` targets both error classes by name
-    (alongside timeout-shaped errors), with a 10s delay so an overloaded
-    site's queue can drain, so a same-run retry gets two more chances
-    before the failure is final.
+    (alongside timeout-shaped errors), 3 retries 15s apart so an overloaded
+    site's queue can drain before the failure is final. Account cleanup in
+    fixture teardown warns instead of erroring if the site sheds it.
   - `-n auto`, not a hardcoded worker count, on both UI jobs: a fixed `-n 4`
     on a runner with fewer cores than that oversubscribes it, and enough
     browser processes competing for too few cores turns into exactly the
@@ -356,7 +356,7 @@ guaranteed in one place.
 
 ### Retry on infrastructure noise only
 
-`pytest.ini` sets `--reruns 2` **scoped with `--only-rerun` to
+`pytest.ini` sets `--reruns 3` **scoped with `--only-rerun` to
 timeout-shaped errors and the site's named infrastructure pages**
 (`AntiBotChallengeError`, `SiteOverloadedError`). Across a full-suite run
 the live site occasionally serves a page whose `load` never fires, drops a
