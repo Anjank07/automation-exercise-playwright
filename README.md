@@ -53,7 +53,7 @@ is optimising for.
 │   ├── user_data.py         # UserData dataclass + build_user() (unique email)
 │   ├── api_response.py      # parses the API's JSON `responseCode` (HTTP is always 200)
 │   ├── account_api.py       # account endpoints: fixtures' provisioning + API tests' client
-│   ├── anti_bot.py          # shared WAF-challenge marker + AntiBotChallengeError
+│   ├── anti_bot.py          # detects the site's WAF-challenge + 503 overload pages
 │   │                         # (used by api_response.py AND pages/base_page.py)
 │   └── payment_card.py      # PaymentCard dataclass (checkout tests)
 ├── pages/                  # Page Object Model — locators + actions, no assertions
@@ -251,20 +251,34 @@ Decisions behind it:
   instead of the app — seen on the Chromium leg of the first nightly run
   while Firefox passed 30/30 in the same minute, and on **both** legs of a
   later run (the filter appears to key on the runner's network range, not
-  the browser, so which legs it hits varies run to run). The suite does
-  not try to get around that filter; it names the hit instead, in both
-  places it can happen:
-  - `helpers/anti_bot.py` holds the shared marker + a dedicated
-    `AntiBotChallengeError`, raised by `helpers/api_response.py` on a
-    challenged API response and by `BasePage` (`_goto` /
-    `click_and_load` — every navigation goes through one of the two) on a
-    challenged page. Either shows up as a named, readable error — "the
-    site's anti-bot verification page instead of JSON/the app" — not a
-    generic parse error or a locator timeout that sends you hunting for a
-    broken selector that was never the problem.
-  - `pytest.ini`'s `--only-rerun` targets `AntiBotChallengeError`
-    specifically (alongside timeout-shaped errors), so a same-run retry
-    gets one more chance before the failure is final.
+  the browser, so which legs it hits varies run to run). It also sheds load:
+  from late October 2026 it began answering some requests with an HTTP 503
+  "This website is under heavy load (queue full)" page. Nothing recognised
+  that page, so it surfaced as a random locator/count assertion in a
+  different test each night, was never retried, and turned every nightly
+  red. The suite does not try to get around either page; it names the hit
+  instead, in both places it can happen:
+  - `helpers/anti_bot.py` holds the markers and one
+    `raise_if_site_unavailable()` check, raising `AntiBotChallengeError` or
+    `SiteOverloadedError` (both `SiteUnavailableError`s). It's called by
+    `helpers/api_response.py` on a non-JSON API response (any HTTP 503
+    counts as overload) and by `BasePage` (`_goto` / `click_and_load` —
+    every navigation goes through one of the two) on the rendered page.
+    Either shows up as a named, readable error — "the site's anti-bot
+    verification page / overload page instead of the app" — not a generic
+    parse error or a locator timeout that sends you hunting for a broken
+    selector that was never the problem.
+  - Safety net in `tests/ui/conftest.py`: not every request goes through
+    those chokepoints (a form submitted with a plain `.click()`, the
+    add-to-cart XHR). A `pytest_runtest_call` / `pytest_runtest_setup`
+    wrapper re-raises a failing UI test as `SiteOverloadedError` /
+    `AntiBotChallengeError` (original chained) **only** if the page on
+    screen is an infra page or the site answered a request with 503 during
+    that test. Without that evidence the original failure stands.
+  - `pytest.ini`'s `--only-rerun` targets both error classes by name
+    (alongside timeout-shaped errors), 3 retries 15s apart so an overloaded
+    site's queue can drain before the failure is final. Account cleanup in
+    fixture teardown warns instead of erroring if the site sheds it.
   - `-n auto`, not a hardcoded worker count, on both UI jobs: a fixed `-n 4`
     on a runner with fewer cores than that oversubscribes it, and enough
     browser processes competing for too few cores turns into exactly the
@@ -340,12 +354,13 @@ lose the race, which is the worst kind of flake to chase. Routing every
 navigation through one of two methods means "the page is ready" is
 guaranteed in one place.
 
-### Retry on timeout only
+### Retry on infrastructure noise only
 
-`pytest.ini` sets `--reruns 2` **scoped with `--only-rerun` to
-timeout-shaped errors**. Across a full-suite run the live site
-occasionally serves a page whose `load` never fires, or drops a request —
-infrastructure noise. An **assertion** failure is a real finding and is
+`pytest.ini` sets `--reruns 3` **scoped with `--only-rerun` to
+timeout-shaped errors and the site's named infrastructure pages**
+(`AntiBotChallengeError`, `SiteOverloadedError`). Across a full-suite run
+the live site occasionally serves a page whose `load` never fires, drops a
+request, or sheds it with a 503 — infrastructure noise. An **assertion** failure is a real finding and is
 never retried: it fails on the first attempt. This keeps the suite honest
 (a genuine regression still goes red immediately) while not failing a CI
 run because an ad server hiccuped.

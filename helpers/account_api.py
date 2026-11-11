@@ -42,6 +42,7 @@ import warnings
 
 from playwright.sync_api import APIRequestContext
 
+from helpers.anti_bot import SiteUnavailableError
 from helpers.api_response import ApiResponse
 from helpers.user_data import UserData
 
@@ -118,8 +119,18 @@ class AccountApi:
         against a test that actually passed, but silently swallowing it
         (what the first version of this method did) would hide a leak of
         test accounts on a shared public site.
+
+        The same applies when the site sheds the cleanup call itself (503
+        overload / WAF page): the test's verdict is already in, every test
+        user has a unique email so a leaked account can't collide with a
+        later run, and failing here would turn a passed test into an ERROR
+        and make rerunfailures repeat the whole test just to retry cleanup.
         """
-        reply = self.delete(email, password)
+        try:
+            reply = self.delete(email, password)
+        except SiteUnavailableError as exc:
+            warnings.warn(f"cleanup of {email} skipped — {exc}", stacklevel=2)
+            return
         if reply.code not in (200, 404):
             warnings.warn(
                 f"cleanup of {email} returned unexpected {reply.code}: {reply.body}",

@@ -11,8 +11,7 @@ Model answer to that duplication.
 """
 from playwright.sync_api import Locator, Page
 
-from helpers.anti_bot import MARKER as ANTI_BOT_MARKER
-from helpers.anti_bot import AntiBotChallengeError
+from helpers.anti_bot import raise_if_site_unavailable
 
 
 class BasePage:
@@ -132,33 +131,30 @@ class BasePage:
         (see tests/ui/conftest.py) and the 30s navigation timeout.
         """
         self.page.goto(path, wait_until="load")
-        self._check_not_anti_bot_challenge()
+        self._check_site_served_the_app()
 
-    def _check_not_anti_bot_challenge(self) -> None:
-        """Raise a clear, distinctly-typed error if the site's WAF served a
-        "please wait, verifying..." page instead of the app.
+    def _check_site_served_the_app(self) -> None:
+        """Raise a clear, distinctly-typed error if the site served one of its
+        infrastructure pages — the WAF's "please wait, verifying..." page or
+        the 503 "under heavy load (queue full)" page — instead of the app.
 
-        Without this, a challenge shows up as a mundane
-        `expect(locator).to_be_visible()` timeout a few lines later — every
-        locator on the fake page fails to resolve, and the traceback points
-        at "my selector is wrong" when the real story is "this runner got
-        blocked before the test even started". helpers/api_response.py does
-        the equivalent check on API responses; this is its UI-side twin,
-        called from both navigation chokepoints (_goto, click_and_load) so
-        every navigation in the suite is covered from one place.
+        Without this, either shows up as a mundane
+        `expect(locator).to_be_visible()` failure a few lines later — every
+        locator on the infra page fails to resolve, and the traceback points
+        at "my selector is wrong" when the real story is "the site never
+        served the app". That is not hypothetical: the overload page went
+        unrecognised for weeks and failed a different, random test every
+        nightly. helpers/api_response.py does the equivalent check on API
+        responses; both delegate to helpers/anti_bot.py, and this is called
+        from both navigation chokepoints (_goto, click_and_load) so every
+        navigation in the suite is covered from one place.
 
-        page.content() (the full rendered HTML), not page.title(): we don't
-        know for certain the challenge page sets a distinctive <title>, and
-        this check only runs once per navigation, so the extra cost of a
-        full-content read is not worth trading away certainty for.
+        page.content() (the full rendered HTML), not page.title(): neither
+        infra page is guaranteed a distinctive <title> (the overload page
+        has none at all), and this runs once per navigation, so the cost of
+        a full-content read is not worth trading away certainty for.
         """
-        if ANTI_BOT_MARKER in self.page.content():
-            raise AntiBotChallengeError(
-                f"{self.page.url} answered with the site's anti-bot verification "
-                "page instead of the app — this runner was challenged by the "
-                "WAF; an infrastructure problem, not a test or product defect. "
-                "See README 'Third-party site, honest results'."
-            )
+        raise_if_site_unavailable(self.page.content(), self.page.url)
 
     def subscribe(self, email: str) -> None:
         """Fill the footer email box and click the arrow.
@@ -187,7 +183,7 @@ class BasePage:
         """
         target.click()
         self.page.wait_for_load_state("load")
-        self._check_not_anti_bot_challenge()
+        self._check_site_served_the_app()
 
     # ------------------------------------------------------------------ #
     # Navigation helpers. Each returns the page object for where you land,
